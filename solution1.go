@@ -9,7 +9,6 @@ import (
 )
 
 func solution1() {
-
 	// Uncomment to test
 	// arr := [][]int{
 	// 	{59},
@@ -22,66 +21,53 @@ func solution1() {
 	data, _ := os.ReadFile("./files/hard.json")
 	json.Unmarshal(data, &arr)
 
-	n, e := big.NewInt(2), big.NewInt(int64(len(arr)-1))
+	base, power := big.NewInt(2), big.NewInt(int64(len(arr)-1))
 
-	n.Exp(n, e, nil)
+	totalPaths := base.Exp(base, power, nil)
 
-	maxChan := make(chan int)
-	finished := make(chan bool)
-	result := make(chan int)
+	jobs := make(chan string)
+	result := 0
 
-	go compare(maxChan, finished, result)
+	for w := 0; w < 1_000_000; w++ {
+		go worker(arr, jobs, &result)
+	}
 
-	for path := new(big.Int).Set(big.NewInt(0)); path.Cmp(n) < 0; path.Add(path, big.NewInt(1)) {
+	for path := new(big.Int).Set(big.NewInt(0)); path.Cmp(totalPaths) < 0; path.Add(path, big.NewInt(1)) {
 		leading := new(big.Int).Lsh(big.NewInt(1), uint(len(arr)))
 		directionInt := new(big.Int).Add(path, leading)
 		directions := fmt.Sprintf("%b", directionInt)
 		directions = directions[1:]
 
-		go findMax(arr, directions, maxChan)
-		finished <- false
+		jobs <- directions
 	}
 
-	close(maxChan)
-	finished <- true
-	close(finished)
-	fmt.Println(<-result)
-	close(result)
+	close(jobs)
 
+	fmt.Println(result)
 }
 
-func findMax(arr [][]int, directions string, value chan<- int) {
-	sum := 0
-	j := 0
+func worker(arr [][]int, jobs <-chan string, max *int) {
 
-	for i, char := range directions {
+	for directions := range jobs {
+		sum := 0
+		j := 0
 
-		direction, _ := strconv.Atoi(string(char))
+		for i, char := range directions {
 
-		if direction == 0 {
-			sum += arr[i][j]
-		} else {
-			j++
-			sum += arr[i][j]
+			direction, _ := strconv.Atoi(string(char))
+
+			if direction == 0 {
+				sum += arr[i][j]
+			} else {
+				j++
+				sum += arr[i][j]
+			}
+		}
+
+		if sum > *max {
+			*max = sum
+			fmt.Println(*max)
 		}
 	}
-
-	value <- sum
-}
-
-func compare(value <-chan int, finished <-chan bool, result chan<- int) {
-
-	maxValue := 0
-	isFinished := false
-	for !isFinished {
-		received := <-value
-		isFinished = <-finished
-		if received > maxValue {
-			maxValue = received
-			fmt.Println(maxValue)
-		}
-	}
-
-	result <- maxValue
 
 }
