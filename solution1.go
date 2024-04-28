@@ -33,17 +33,20 @@ func solution1() {
 		go worker(arr, jobs, &result, &cache)
 	}
 
-	lastPath := ""
+	firstPrev := ""
+	secondPrev := ""
 
-	for path := new(big.Int).Set(big.NewInt(0)); path.Cmp(totalPaths) < 0; path.Add(path, big.NewInt(1)) {
-		leading := new(big.Int).Lsh(big.NewInt(1), uint(len(arr)))
-		directionInt := new(big.Int).Add(path, leading)
-		directions := fmt.Sprintf("%b", directionInt)
-		directions = directions[1:]
+	half := new(big.Int).Div(totalPaths, big.NewInt(2))
+	for path := new(big.Int).Set(big.NewInt(0)); path.Cmp(half) < 0; path.Add(path, big.NewInt(1)) {
+		var directions string
+		directions = createJob(arr, path)
+		jobs <- []string{directions, firstPrev}
+		firstPrev = directions
 
-		jobs <- []string{directions, lastPath}
-
-		lastPath = directions
+		secondHalf := new(big.Int).Add(half, path)
+		directions = createJob(arr, secondHalf)
+		jobs <- []string{directions, secondPrev}
+		secondPrev = directions
 	}
 
 	close(jobs)
@@ -51,17 +54,24 @@ func solution1() {
 	fmt.Println(result)
 }
 
+func createJob(arr [][]int, path *big.Int) string {
+	leading := new(big.Int).Lsh(big.NewInt(1), uint(len(arr)))
+	directionInt := new(big.Int).Add(path, leading)
+	directions := fmt.Sprintf("%b", directionInt)
+	directions = directions[1:]
+
+	return directions
+}
+
 func worker(arr [][]int, jobs <-chan []string, max *int, cache *sync.Map) {
 
 	for job := range jobs {
-		// fmt.Println()
 		sum := 0
 		i := 0
 		j := 0
 		directions := job[0]
 		lastPath := job[1]
 
-		// fmt.Println(directions, lastPath)
 		for k := 0; k < len(directions); k++ {
 
 			if lastPath == "" {
@@ -71,7 +81,6 @@ func worker(arr [][]int, jobs <-chan []string, max *int, cache *sync.Map) {
 			if directions[k] != lastPath[k] {
 				key := createCacheKey(k-1, j)
 				cached, _ := cache.Load(key)
-				// fmt.Println(key, sum)
 				if cached != nil {
 					i = k
 					sum = cached.(int)
@@ -91,11 +100,7 @@ func worker(arr [][]int, jobs <-chan []string, max *int, cache *sync.Map) {
 
 		}
 
-		// fmt.Println(*cache, i, j)
 		for i < len(directions) {
-
-			// fmt.Println(i, j)
-
 			if directions[i] == '0' {
 				sum += arr[i][j]
 			} else {
