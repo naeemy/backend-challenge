@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"sync"
 )
 
 func solution1() {
@@ -26,9 +27,9 @@ func solution1() {
 
 	jobs := make(chan []string)
 	result := 0
-	cache := make(map[string]int)
+	var cache sync.Map
 
-	for w := 0; w < 1; w++ {
+	for w := 0; w < 1_000_000; w++ {
 		go worker(arr, jobs, &result, &cache)
 	}
 
@@ -50,7 +51,7 @@ func solution1() {
 	fmt.Println(result)
 }
 
-func worker(arr [][]int, jobs <-chan []string, max *int, cache *map[string]int) {
+func worker(arr [][]int, jobs <-chan []string, max *int, cache *sync.Map) {
 
 	for job := range jobs {
 		// fmt.Println()
@@ -69,10 +70,11 @@ func worker(arr [][]int, jobs <-chan []string, max *int, cache *map[string]int) 
 
 			if directions[k] != lastPath[k] {
 				key := createCacheKey(k-1, j)
+				cached, _ := cache.Load(key)
 				// fmt.Println(key, sum)
-				if (*cache)[key] != 0 {
+				if cached != nil {
 					i = k
-					sum = (*cache)[key]
+					sum = cached.(int)
 
 					break
 				} else {
@@ -103,8 +105,7 @@ func worker(arr [][]int, jobs <-chan []string, max *int, cache *map[string]int) 
 
 			if i != len(directions)-1 {
 				key := createCacheKey(i, j)
-
-				(*cache)[key] = sum
+				cache.Store(key, sum)
 			}
 
 			i++
