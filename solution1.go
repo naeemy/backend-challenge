@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"strconv"
 )
 
 func solution1() {
@@ -25,12 +24,15 @@ func solution1() {
 
 	totalPaths := base.Exp(base, power, nil)
 
-	jobs := make(chan string)
+	jobs := make(chan []string)
 	result := 0
+	cache := make(map[string]int)
 
-	for w := 0; w < 1_000_000; w++ {
-		go worker(arr, jobs, &result)
+	for w := 0; w < 1; w++ {
+		go worker(arr, jobs, &result, &cache)
 	}
+
+	lastPath := ""
 
 	for path := new(big.Int).Set(big.NewInt(0)); path.Cmp(totalPaths) < 0; path.Add(path, big.NewInt(1)) {
 		leading := new(big.Int).Lsh(big.NewInt(1), uint(len(arr)))
@@ -38,7 +40,9 @@ func solution1() {
 		directions := fmt.Sprintf("%b", directionInt)
 		directions = directions[1:]
 
-		jobs <- directions
+		jobs <- []string{directions, lastPath}
+
+		lastPath = directions
 	}
 
 	close(jobs)
@@ -46,22 +50,64 @@ func solution1() {
 	fmt.Println(result)
 }
 
-func worker(arr [][]int, jobs <-chan string, max *int) {
+func worker(arr [][]int, jobs <-chan []string, max *int, cache *map[string]int) {
 
-	for directions := range jobs {
+	for job := range jobs {
+		// fmt.Println()
 		sum := 0
+		i := 0
 		j := 0
+		directions := job[0]
+		lastPath := job[1]
 
-		for i, char := range directions {
+		// fmt.Println(directions, lastPath)
+		for k := 0; k < len(directions); k++ {
 
-			direction, _ := strconv.Atoi(string(char))
+			if lastPath == "" {
+				break
+			}
 
-			if direction == 0 {
+			if directions[k] != lastPath[k] {
+				key := createCacheKey(k-1, j)
+				// fmt.Println(key, sum)
+				if (*cache)[key] != 0 {
+					i = k
+					sum = (*cache)[key]
+
+					break
+				} else {
+					i = 0
+					j = 0
+					break
+				}
+
+			}
+
+			if directions[k] == '1' {
+				j++
+			}
+
+		}
+
+		// fmt.Println(*cache, i, j)
+		for i < len(directions) {
+
+			// fmt.Println(i, j)
+
+			if directions[i] == '0' {
 				sum += arr[i][j]
 			} else {
 				j++
 				sum += arr[i][j]
 			}
+
+			if i != len(directions)-1 {
+				key := createCacheKey(i, j)
+
+				(*cache)[key] = sum
+			}
+
+			i++
 		}
 
 		if sum > *max {
@@ -70,4 +116,8 @@ func worker(arr [][]int, jobs <-chan string, max *int) {
 		}
 	}
 
+}
+
+func createCacheKey(i int, j int) string {
+	return fmt.Sprintf("%d:%d", i, j)
 }
