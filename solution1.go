@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"runtime"
 	"sync"
 )
 
 func solution1() {
+	wg := new(sync.WaitGroup)
 	// Uncomment to test
 	// arr := [][]int{
 	// 	{59},
@@ -22,41 +24,57 @@ func solution1() {
 	json.Unmarshal(data, &arr)
 
 	base, power := big.NewInt(2), big.NewInt(int64(len(arr)-1))
-
-	totalPaths := base.Exp(base, power, nil)
+	totalRoutes := base.Exp(base, power, nil)
+	chunkSize := new(big.Int).Exp(big.NewInt(2), big.NewInt(20), nil)
 
 	jobs := make(chan []string)
 	result := 0
 	var cache sync.Map
 
-	for w := 0; w < 1_000_000; w++ {
+	for w := 0; w < runtime.NumCPU(); w++ {
 		go worker(arr, jobs, &result, &cache)
 	}
 
-	firstPrev := ""
-	secondPrev := ""
+	var incrementBy big.Int
 
-	half := new(big.Int).Div(totalPaths, big.NewInt(2))
-	for path := new(big.Int).Set(big.NewInt(0)); path.Cmp(half) < 0; path.Add(path, big.NewInt(1)) {
-		var directions string
-		directions = createJob(arr, path)
-		jobs <- []string{directions, firstPrev}
-		firstPrev = directions
-
-		secondHalf := new(big.Int).Add(half, path)
-		directions = createJob(arr, secondHalf)
-		jobs <- []string{directions, secondPrev}
-		secondPrev = directions
+	if totalRoutes.Cmp(chunkSize) >= 0 {
+		incrementBy = *chunkSize
+	} else {
+		incrementBy = *new(big.Int).Sub(totalRoutes, big.NewInt(1))
 	}
 
+	var start big.Int = *big.NewInt(0)
+	var stop big.Int = *big.NewInt(0)
+
+	// TODO: FIX RACE CONDITION
+	for task := incrementBy; task.Cmp(totalRoutes) < 0; task.Add(&task, &incrementBy) {
+		wg.Add(1)
+		stop = task
+		go func(s big.Int, e big.Int) {
+			lastRoute := ""
+			for route := &s; route.Cmp(&e) < 0 || route.Cmp(&e) == 0; route.Add(route, big.NewInt(1)) {
+				directions := createJob(arr, *route)
+				jobs <- []string{directions, lastRoute}
+				lastRoute = directions
+
+			}
+			wg.Done()
+		}(start, stop)
+		start = task
+	}
+
+	wg.Wait()
 	close(jobs)
 
 	fmt.Println(result)
 }
 
-func createJob(arr [][]int, path *big.Int) string {
+func generateChunks(incrementBy big.Int, totalRoutes *big.Int, chunks chan<- []big.Int) {
+
+}
+func createJob(arr [][]int, route big.Int) string {
 	leading := new(big.Int).Lsh(big.NewInt(1), uint(len(arr)))
-	directionInt := new(big.Int).Add(path, leading)
+	directionInt := new(big.Int).Add(&route, leading)
 	directions := fmt.Sprintf("%b", directionInt)
 	directions = directions[1:]
 
