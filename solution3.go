@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -28,7 +29,12 @@ func solution3() {
 
 	jsonMenu, _ := json.MarshalIndent(menu, "", "")
 
-	fmt.Println(string(jsonMenu))
+	http.HandleFunc("/summary", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, string(jsonMenu))
+	})
+
+	log.Fatal(http.ListenAndServe(":8080", nil))
+
 }
 
 func parseAPI(url string) string {
